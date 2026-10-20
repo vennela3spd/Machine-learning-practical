@@ -1,0 +1,907 @@
+PRACTICAL 1
+PA-Part A: Dataset Exploration  
+Load the provided dataset using Pandas.  
+Display rows, columns, data types, missing values, and summary statistics.  
+CODE:
+!pip install pandas pyarrow fastavro openpyxl jupyter -q
+
+import pandas as pd
+
+# Load the dataset
+df = pd.read_csv("customers.csv")
+
+print("=" * 60)
+print("DATASET EXPLORATION")
+print("=" * 60)
+
+print("\nFIRST 10 RECORDS")
+print(df.head(10))
+
+print("\nLAST 10 RECORDS")
+print(df.tail(10))
+
+# Dataset shape
+rows, cols = df.shape
+print("\nDATASET SHAPE")
+print("Number of Rows:", rows)
+print("Number of Columns:", cols)
+
+# Column names
+print("\nCOLUMN NAMES")
+for col in df.columns:
+    print(col)
+
+# Data types
+print("\nDATA TYPES")
+print(df.dtypes)
+
+# Dataset information
+print("\nDATASET INFORMATION")
+df.info()
+
+# Missing values
+print("\nMISSING VALUES")
+missing = df.isnull().sum()
+print(missing)
+print("Total Missing Values:", missing.sum())
+
+# Duplicate records
+duplicates = df.duplicated().sum()
+print("\nDUPLICATE RECORDS")
+print(duplicates)
+
+# Numerical summary
+print("\nNUMERICAL SUMMARY")
+print(df.describe())
+
+# Complete summary
+print("\nCOMPLETE SUMMARY")
+print(df.describe(include="all"))
+
+# Memory usage
+memory = df.memory_usage(deep=True).sum()
+print("\nMEMORY USAGE")
+print(round(memory / 1024, 2), "KB")
+
+# Unique values
+print("\nUNIQUE VALUES")
+for col in ["Country", "City", "Company"]:
+    print(col, ":", df[col].nunique())
+
+# Top 10 countries
+print("\nTOP 10 COUNTRIES")
+print(df["Country"].value_counts().head(10))
+
+# Top 10 cities
+print("\nTOP 10 CITIES")
+print(df["City"].value_counts().head(10))
+
+# Subscription date range
+df["Subscription Date"] = pd.to_datetime(
+    df["Subscription Date"], errors="coerce"
+)
+
+print("\nSUBSCRIPTION DATE RANGE")
+print("Earliest Date:", df["Subscription Date"].min())
+print("Latest Date:", df["Subscription Date"].max())
+
+# Extract email domains
+df["Domain"] = df["Email"].str.split("@").str[-1]
+
+print("\nTOP EMAIL DOMAINS")
+print(df["Domain"].value_counts().head(10))
+
+# Country-wise customer count
+country_count = df.groupby("Country").size()
+
+print("\nCOUNTRY-WISE CUSTOMER COUNT")
+print(country_count.head(20))
+
+# Create summary report
+summary = pd.DataFrame({
+    "Parameter": [
+        "Total Records",
+        "Total Columns",
+        "Duplicate Records",
+        "Total Missing Values"
+    ],
+    "Value": [
+        rows,
+        cols,
+        duplicates,
+        missing.sum()
+    ]
+})
+
+summary.to_csv("dataset_profile_report.csv", index=False)
+
+print("\nProfile Report Generated Successfully")
+
+Part B: Format Conversion 
+Convert the dataset into JSON, Parquet, ORC, and Avro formats.  
+Store generated files for comparison. 
+CODE:
+
+import pandas as pd
+from fastavro import writer, parse_schema
+
+# Load dataset
+df = pd.read_csv("customers.csv")
+print("Dataset Loaded Successfully")
+print("Dataset Shape:", df.shape)
+
+# 1. Convert to JSON
+df.to_json(
+    "customers.json",
+    orient="records",
+    indent=4
+)
+print("JSON file created successfully")
+
+# 2. Convert to Parquet
+df.to_parquet(
+    "customers.parquet",
+    index=False
+)
+print("Parquet file created successfully")
+
+# 3. Convert to ORC
+df.to_orc(
+    "customers.orc",
+    index=False
+)
+print("ORC file created successfully")
+
+# 4. Convert to Avro
+# Use the actual column names from the dataset
+schema = {
+    "type": "record",
+    "name": "Customer",
+    "fields": [
+        {
+            "name": str(col),
+            "type": ["null", "string"]
+        }
+        for col in df.columns
+    ]
+}
+
+parsed_schema = parse_schema(schema)
+
+# Convert all values to strings and handle missing values
+records = []
+for record in df.to_dict(orient="records"):
+    clean_record = {}
+    for col, value in record.items():
+        clean_record[str(col)] = (
+            None if pd.isna(value) else str(value)
+        )
+    records.append(clean_record)
+
+with open("customers.avro", "wb") as out:
+    writer(out, parsed_schema, records)
+
+print("Avro file created successfully")
+print("\nAll four file formats generated successfully!")
+
+Part C: Schema Analysis 
+Study schema support, metadata support, and schema evolution support.
+CODE:
+
+import pandas as pd
+import os
+import pyarrow.parquet as pq
+
+# Load CSV dataset
+df = pd.read_csv("customers.csv")
+
+print("=" * 50)
+print("SCHEMA ANALYSIS")
+print("=" * 50)
+
+# 1. CSV Schema
+print("\nCSV SCHEMA INFORMATION")
+print(df.dtypes)
+
+# Convert Subscription Date to datetime
+df["Subscription Date"] = pd.to_datetime(
+    df["Subscription Date"], errors="coerce"
+)
+print("\nCSV SCHEMA AFTER DATE CONVERSION")
+print(df.dtypes)
+
+# 2. Read and analyze each format
+csv_df = pd.read_csv("customers.csv")
+json_df = pd.read_json("customers.json")
+parquet_df = pd.read_parquet("customers.parquet")
+orc_df = pd.read_orc("customers.orc")
+
+print("\nCSV DATA TYPES")
+print(csv_df.dtypes)
+
+print("\nJSON DATA TYPES")
+print(json_df.dtypes)
+
+print("\nPARQUET DATA TYPES")
+print(parquet_df.dtypes)
+
+print("\nORC DATA TYPES")
+print(orc_df.dtypes)
+
+# 3. CSV file size
+print("\nCSV FILE SIZE")
+print(os.path.getsize("customers.csv"), "bytes")
+
+# 4. Parquet schema and metadata
+table = pq.read_table("customers.parquet")
+
+print("\nPARQUET SCHEMA")
+print(table.schema)
+
+print("\nPARQUET METADATA")
+metadata = pq.read_metadata("customers.parquet")
+print("Number of Rows:", metadata.num_rows)
+print("Number of Columns:", metadata.num_columns)
+print("Number of Row Groups:", metadata.num_row_groups)
+
+print("\nSCHEMA ANALYSIS COMPLETED")
+
+Part D: Storage Comparison 
+Measure file sizes and compare storage efficiency.  
+
+CODE:
+
+import os
+import pandas as pd
+
+# List of files
+files = [
+    "customers.csv",
+    "customers.json",
+    "customers.parquet",
+    "customers.orc",
+    "customers.avro"
+]
+
+# 1. File size comparison
+print("=" * 50)
+print("FILE SIZE COMPARISON")
+print("=" * 50)
+
+for file in files:
+    size = os.path.getsize(file) / (1024 * 1024)
+    print(f"{file}: {size:.4f} MB")
+
+# 2. Store file sizes in a DataFrame
+storage_data = []
+
+for file in files:
+    size = round(os.path.getsize(file) / (1024 * 1024), 4)
+    storage_data.append([file, size])
+
+storage_df = pd.DataFrame(
+    storage_data,
+    columns=["Format", "Size (MB)"]
+)
+
+print("\nSTORAGE COMPARISON TABLE")
+print(storage_df)
+
+# 3. Calculate storage reduction compared with CSV
+csv_size = os.path.getsize("customers.csv")
+
+print("\nSTORAGE REDUCTION COMPARED WITH CSV")
+
+for file in files:
+    if file == "customers.csv":
+        continue
+
+    size = os.path.getsize(file)
+
+    reduction = ((csv_size - size) / csv_size) * 100
+
+    print(
+        file,
+        "Storage Reduction:",
+        round(reduction, 2),
+        "%"
+    )
+
+# 4. Save comparison results
+storage_df.to_csv("storage_comparison.csv", index=False)
+
+print("\nStorage comparison report saved successfully")
+
+
+Part E: Performance Benchmarking  
+Measure read time for each format and compare performance.  
+
+CODE:
+
+import pandas as pd
+import time
+from fastavro import reader
+import matplotlib.pyplot as plt
+
+benchmark_results = []
+
+# 1. CSV read time
+start = time.perf_counter()
+csv_df = pd.read_csv("customers.csv")
+end = time.perf_counter()
+
+benchmark_results.append({
+    "Format": "CSV",
+    "Read_Time_Seconds": round(end - start, 5),
+    "Rows_Read": csv_df.shape[0],
+    "Columns_Read": csv_df.shape[1]
+})
+
+# 2. JSON read time
+start = time.perf_counter()
+json_df = pd.read_json("customers.json")
+end = time.perf_counter()
+
+benchmark_results.append({
+    "Format": "JSON",
+    "Read_Time_Seconds": round(end - start, 5),
+    "Rows_Read": json_df.shape[0],
+    "Columns_Read": json_df.shape[1]
+})
+
+# 3. Parquet read time
+start = time.perf_counter()
+parquet_df = pd.read_parquet("customers.parquet")
+end = time.perf_counter()
+
+benchmark_results.append({
+    "Format": "Parquet",
+    "Read_Time_Seconds": round(end - start, 5),
+    "Rows_Read": parquet_df.shape[0],
+    "Columns_Read": parquet_df.shape[1]
+})
+
+# 4. ORC read time
+start = time.perf_counter()
+orc_df = pd.read_orc("customers.orc")
+end = time.perf_counter()
+
+benchmark_results.append({
+    "Format": "ORC",
+    "Read_Time_Seconds": round(end - start, 5),
+    "Rows_Read": orc_df.shape[0],
+    "Columns_Read": orc_df.shape[1]
+})
+
+# 5. Avro read time
+start = time.perf_counter()
+
+with open("customers.avro", "rb") as file:
+    avro_records = list(reader(file))
+
+avro_df = pd.DataFrame(avro_records)
+end = time.perf_counter()
+
+benchmark_results.append({
+    "Format": "Avro",
+    "Read_Time_Seconds": round(end - start, 5),
+    "Rows_Read": avro_df.shape[0],
+    "Columns_Read": avro_df.shape[1]
+})
+
+# Display benchmark results
+benchmark_df = pd.DataFrame(benchmark_results)
+
+print("=" * 50)
+print("READ PERFORMANCE BENCHMARK")
+print("=" * 50)
+print(benchmark_df.to_string(index=False))
+
+# Identify the fastest format
+fastest = benchmark_df.loc[
+    benchmark_df["Read_Time_Seconds"].idxmin()
+]
+
+print("\nFASTEST FORMAT:", fastest["Format"])
+print("READ TIME:", fastest["Read_Time_Seconds"], "seconds")
+
+# Save results
+benchmark_df.to_csv("benchmark_results.csv", index=False)
+print("\nBenchmark results saved successfully")
+
+# Plot read-time comparison
+plt.figure(figsize=(9, 5))
+plt.bar(
+    benchmark_df["Format"],
+    benchmark_df["Read_Time_Seconds"]
+)
+plt.xlabel("File Format")
+plt.ylabel("Read Time (Seconds)")
+plt.title("File Format Read Performance Comparison")
+plt.tight_layout()
+plt.savefig("benchmark_chart.png")
+plt.show()
+
+
+PRACTICAL 2
+Question 1:
+# 1.Send a GET request to the REST API.
+# 2.Display the status code and response headers.
+# 3.Retrieve the JSON response.
+# 4.Display the first few records of the response.
+
+# Code 1 – Setup
+import requests
+import pandas as pd
+
+# Code 2 – Send GET Request
+url = "https://jsonplaceholder.typicode.com/posts"
+
+response = requests.get(url)
+
+print("Status Code:", response.status_code)
+print("\nHeaders:")
+print(response.headers)
+
+# Code 3 – Retrieve JSON Response
+
+data = response.json()
+print(type(data))
+print("Total Records:", len(data))
+
+# Code 4 – Display First Few Records
+for record in data[:5]:
+    print(record)
+
+Question 2
+# Q.2Convert the API response into a DataFrame and perform data cleaning.
+
+# Write Python code to:
+
+# 1.Convert the JSON response into a Pandas DataFrame.
+# 2.Inspect the dataset structure.
+# 3.Handle missing values and duplicate records.
+# 4.Standardize the required text fields.
+# 5.Create additional derived columns where necessary.
+
+# Code 1 – Convert JSON to DataFrame
+
+df = pd.DataFrame(data)
+print(df.head())
+
+# Code 2 – Inspect Dataset
+print(df.info())
+print(df.describe())
+print(df.shape)
+
+# Code 3 – Missing Values & Duplicates
+print(df.isnull().sum())
+df = df.drop_duplicates()
+print(df.shape)
+
+# Code 4 – Standardize Text Fields
+df["title"] = df["title"].str.title()
+df["body"] = df["body"].str.lower()
+print(df.head())
+
+# Code 5 – Create Derived Column
+df["title_length"] = df["title"].str.len()
+print(df.head())
+
+Question 3
+# Question 3
+
+# Perform basic analysis on the ingested API data.
+
+# Write Python code to:
+
+# 1.Merge the required datasets (if applicable).
+# 2.Calculate summary statistics.
+# 3.Analyze records by user/category.
+# 4.Display the results using tables and simple visualizations
+
+# Code 1 – Merge Dataset
+users = requests.get("https://jsonplaceholder.typicode.com/users").json()
+users_df = pd.DataFrame(users)
+merged_df = pd.merge(df, users_df, left_on="userId", right_on="id")
+print(merged_df.head())
+
+# Code 2 – Summary Statistics
+print(df.describe(include="all"))
+
+# Code 3 – Analyze Records by User
+count = df.groupby("userId").size()
+print(count)
+
+# Code 4 – Visualization
+import matplotlib.pyplot as plt
+count.plot(kind="bar")
+plt.title("Posts by User")
+plt.xlabel("User ID")
+plt.ylabel("Number of Posts")
+plt.show()
+
+Question 4
+
+
+# Question 4
+
+# Simulate real-time data streaming and prepare the Kafka environment.
+
+# Write Python code to:
+
+# 1.Simulate streaming records one at a time using Python.
+# 2.Save the streamed records into a JSON Lines (.jsonl) file.
+# 3.Verify the Docker installation.
+# 4.Start the Kafka container using Docker.
+# 5.Verify that the Kafka container is running successfully.
+
+# Code 1 – Simulate Streaming
+ 
+
+import requests
+import json
+import time
+
+# Step 1: Fetch data from the REST API
+url = "https://jsonplaceholder.typicode.com/posts"
+
+response = requests.get(url, timeout=10)
+response.raise_for_status()
+
+data = response.json()
+
+print("Total records received:", len(data))
+
+# Step 2: Simulate real-time streaming
+# Step 3: Save streamed records to a JSONL file
+
+with open("stream.jsonl", "w", encoding="utf-8") as file:
+    for record in data[:5]:
+        print("Streaming record:", record)
+
+        # Save one JSON object per line
+        file.write(json.dumps(record) + "\n")
+        file.flush()
+
+        # Wait one second before the next record
+        time.sleep(1)
+
+print("\nStreaming completed successfully.")
+print("File saved as stream.jsonl")
+
+Then run this
+
+
+import os
+import json
+
+filename = "stream.jsonl"
+
+print("File exists:", os.path.exists(filename))
+
+with open(filename, "r", encoding="utf-8") as file:
+    lines = file.readlines()
+
+print("Records saved:", len(lines))
+
+# Check that each line contains valid JSON
+for line in lines:
+    json.loads(line)
+
+print("All lines contain valid JSON.")
+
+then run 
+import os
+print(os.getcwd())
+
+in window powershell run
+# docker --version
+# docker --info
+# docker run -d --name kafka -p 9092:9092 apache/kafka:latest
+# docker ps
+# docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+PRACTICAL 3
+Question 1. Q1. Install and verify Docker. 
+
+Perform the following tasks: 
+Verify the Docker installation.  
+Verify the Docker Compose installation.  
+Display the Docker version.  
+Display the list of Docker images.  
+Display the list of running containers. 
+
+put code in window powershell
+docker --version
+docker compose version
+docker images
+docker ps
+docker ps -a
+wsl --status
+wsl --update
+
+Question 2. Create the Kafka environment using Docker Compose. 
+
+Perform the following tasks: 
+Create the project folder.  
+Create the docker-compose.yml file.  
+Identify the services defined in the Compose file.  
+Explain the purpose of the ports, environment, and networks sections.  
+Save the Compose file. 
+
+again continue to paste in window powershell
+
+mkdir Practical3Kafka
+cd Practical3Kafka
+pwd
+notepad docker-compose.yml ......here notepad will open 
+paste in docker.compose.yml
+
+services:
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - kafka-net
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      - kafka
+    networks:
+      - kafka-net
+
+  jupyter:
+    image: jupyter/base-notebook:latest
+    container_name: jupyter
+    ports:
+      - "8888:8888"
+    networks:
+      - kafka-net
+
+networks:
+  kafka-net:
+    name: kafka-net
+    driver: bridge
+then paste next code in powershell
+docker compose config
+docker ps -a
+docker rm -f kafka
+
+Question 3. Deploy the Kafka environment. 
+Perform the following tasks: 
+Start the Docker Compose environment.  
+Verify that the Kafka, Kafka UI, and Jupyter containers are running.  
+List all running containers.  
+Inspect the Docker network created by Docker Compose. 
+
+paste code in window powershell continue
+docker compose up -d
+docker compose ps
+docker ps
+docker compose logs kafka
+docker compose logs kafka-ui
+docker compose logs jupyter
+docker network ls
+docker network inspect kafka-net
+
+Question 4. Verify the Kafka deployment. 
+
+Perform the following tasks: 
+Open Kafka UI.  
+Identify the Kafka broker.  
+Observe the available topics.  
+Identify the available consumer groups.  
+Access the Jupyter Notebook server.  
+Record your observations. 
+
+now open chrome and type 
+https://localhost:8080
+https://localhost:8888
+enter in 2 different tabs
+then
+in powershell paste
+docker compose logs jupyter
+they check for url containg ?token and open the link
+jupyter will open
+then run on powershell
+docker compose logs jupyter
+
+open jupyter through link and run code
+print("Jupyter is working successfully!")
+atlast verify 3 services
+docker compose ps
+docker exec kafka /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+
+PRACTICAL 4
+Continue to use the previous jupyter
+paste code in jupyter
+
+%pip install confluent-kafka pandas
+
+from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka import Producer, Consumer
+import pandas as pd
+import json
+import time
+print("Libraries imported successfully")
+
+BOOTSTRAP_SERVER = "kafka:9092"
+admin = AdminClient({
+    "bootstrap.servers": BOOTSTRAP_SERVER
+})
+print("Kafka AdminClient created")
+
+TOPIC_NAME = "customer_stream"
+topics = admin.list_topics(timeout=10).topics
+if TOPIC_NAME not in topics:
+    new_topic = NewTopic(
+        TOPIC_NAME,
+        num_partitions=1,
+        replication_factor=1
+    )
+
+    futures = admin.create_topics([new_topic])
+
+    for topic, future in futures.items():
+        try:
+            future.result()
+            print("Topic created successfully")
+        except Exception as e:
+            print("Topic creation error:", e)
+else:
+    print("Topic already exists")
+
+metadata = admin.list_topics(timeout=10)
+
+print("Available Topics:")
+
+for topic in metadata.topics.keys():
+    print(topic)
+
+Question 2. Publish data to the Kafka topic using a Producer. 
+Write Python code to: 
+Load the API dataset provided. 
+Create a Kafka Producer. 
+Convert each record into JSON format. 
+Publish all records to the Kafka topic. 
+Verify that the messages have been sent successfully.
+
+just paste the whole code in jupyter same which used for p3
+
+#q2
+import pandas as pd
+
+data = [
+    {"id": 1, "title": "First post", "userId": 1},
+    {"id": 2, "title": "Second post", "userId": 1},
+    {"id": 3, "title": "Third post", "userId": 2},
+    {"id": 4, "title": "Fourth post", "userId": 2},
+    {"id": 5, "title": "Fifth post", "userId": 3}
+]
+
+df = pd.DataFrame(data)
+
+df.to_json("api_posts.json", orient="records")
+
+df.head()
+
+#
+producer = Producer({
+    "bootstrap.servers": BOOTSTRAP_SERVER
+})
+
+print("Publishing messages...")
+
+for _, row in df.iterrows():
+    message = row.to_dict()
+
+    producer.produce(
+        TOPIC_NAME,
+        key=str(message["id"]),
+        value=json.dumps(message)
+    )
+
+    producer.flush()
+    print("Published:", message["id"])
+    time.sleep(0.3)
+
+print("Streaming completed!")
+
+Question 3. Consume messages from the Kafka topic. 
+Write Python code to: 
+Create a Kafka Consumer. 
+Subscribe to the Kafka topic. 
+Read all messages from the topic. 
+Convert the received messages into a Pandas DataFrame. 
+#
+consumer = Consumer({
+    "bootstrap.servers": BOOTSTRAP_SERVER,
+    "group.id": "practical4_easy",
+    "auto.offset.reset": "earliest",
+    "enable.auto.commit": False
+})
+
+consumer.subscribe([TOPIC_NAME])
+print("Consumer ready")
+
+received = []
+
+while len(received) < len(df):
+    msg = consumer.poll(1.0)
+
+    if msg is None:
+        continue
+
+    if msg.error():
+        continue
+
+    record = json.loads(msg.value().decode("utf-8"))
+    received.append(record)
+
+    print("Received:", record["id"])
+
+consumer.close()
+
+received_df = pd.DataFrame(received)
+received_df.head()
+
+#
+received_df.to_csv("received_df.csv", index=False)
+received_df.to_json("received_df.json", orient="records")
+
+print("CSV created successfully!")
+print("JSON created successfully!")
+
+Question 4. Store and analyze the streamed data. 
+Write Python code to: 
+Save the received messages as CSV and JSON files. 
+Compare the number of records sent and received. 
+Display a suitable visualization showing the streaming results. 
+#
+sent_records = len(df)
+received_records = len(received_df)
+
+print("Records sent:", sent_records)
+print("Records received:", received_records)
+
+if sent_records == received_records:
+    print("All records received successfully!")
+else:
+    print("Mismatch in records!")
+
+print("Difference:", sent_records - received_records)
+#
+%pip install matplotlib
+#
+import matplotlib.pyplot as plt
+
+labels = ["Records Sent", "Records Received"]
+values = [sent_records, received_records]
+
+plt.bar(labels, values, color=["blue", "green"])
+plt.title("Kafka Streaming Results")
+plt.ylabel("Number of Records")
+plt.show()
+
